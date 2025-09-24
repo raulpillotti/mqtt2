@@ -1,20 +1,20 @@
 use core::error::Error;
 use rumqttd::{local::LinkTx, Broker, Config, Notification};
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     thread,
 };
 
 pub struct MqttContext {
-    pub recent_topic: Arc<Mutex<Option<String>>>,
-    pub recent_data: Arc<Mutex<Option<String>>>,
+    pub recent_topic: Arc<RwLock<Option<String>>>,
+    pub recent_data: Arc<RwLock<Option<String>>>,
 }
 
 impl MqttContext {
     pub fn new() -> Self {
         Self {
-            recent_topic: Arc::new(Mutex::new(None)),
-            recent_data: Arc::new(Mutex::new(None)),
+            recent_topic: Arc::new(RwLock::new(None)),
+            recent_data: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -65,10 +65,10 @@ impl MqttManager {
                         let payload = String::from_utf8_lossy(&forward.publish.payload).to_string();
                         println!("MQTT Topic = {:?}, Payload = {}", &topic, &payload);
 
-                        if let Ok(mut recent) = recent_topic.lock() {
+                        if let Ok(mut recent) = recent_topic.write() {
                             *recent = Some(topic);
                         }
-                        if let Ok(mut recent) = recent_data.lock() {
+                        if let Ok(mut recent) = recent_data.write() {
                             *recent = Some(payload);
                         }
                     }

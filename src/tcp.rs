@@ -18,7 +18,7 @@ impl Tcp {
                     let client_address = client_socket.peer_addr().ok();
                     println!("Connection from {:?}", client_address);
 
-                    if let Ok(recent) = recent_data.lock() {
+                    if let Ok(recent) = recent_data.try_read() {
                         if let Some(ref data) = *recent {
                             let body = format!("{}", data);
                             let response = format!(

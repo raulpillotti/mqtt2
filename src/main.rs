@@ -11,10 +11,10 @@ fn main() {
     let _start_tcp_server = tcp::Tcp::new(&mqtt_context);
 
     loop {
-        if let Ok(recent) = mqtt_context.recent_topic.lock() {
+        if let Ok(recent) = mqtt_context.recent_topic.try_read() {
             println!("{:?}", recent);
         }
-        if let Ok(recent) = mqtt_context.recent_data.lock() {
+        if let Ok(recent) = mqtt_context.recent_data.try_read() {
             println!("{:?}", recent);
         }
         std::thread::sleep(std::time::Duration::from_secs(2));

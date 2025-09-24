@@ -23,7 +23,7 @@ impl Tcp {
                             let body = format!("{}", data);
                             let response = format!(
                                 "HTTP/1.1 200 OK\r\n\
-                                            Content-Type: application/json\r\n\
+                                            Content-Type: text/plain; charset=utf-8\r\n\
                                             Content-Length: {}\r\n\r\n\
                                             {}",
                                 body.len(),

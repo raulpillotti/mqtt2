@@ -11,8 +11,8 @@ fn main() {
 
     loop {
         if let Ok(cached) = mqtt_context.cache.try_read() {
-            println!("{:?}", cached);
+            println!("Cache: {:?}", cached);
         }
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        std::thread::sleep(std::time::Duration::from_secs(5));
     }
 }

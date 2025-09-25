@@ -1,7 +1,7 @@
 use core::error::Error;
 use rumqttd::{local::LinkTx, Broker, Config, Notification};
 use std::{
-    collections::HashMap, sync::{Arc, Mutex, RwLock}, thread
+    collections::HashMap, sync::{Arc, RwLock}, thread
 };
 
 pub struct MqttContext {
@@ -43,8 +43,7 @@ impl MqttManager {
         });
 
         let cache = Arc::clone(&context.cache);
-
-        let task_handler = std::thread::spawn(move || loop {
+        let task_handle = std::thread::spawn(move || loop {
             let received = match rx.recv() {
                 Ok(Some(value)) => Some(value),
                 Ok(None) => continue,
@@ -55,27 +54,31 @@ impl MqttManager {
             };
 
             if let Some(rec) = received {
-                match rec {
-                    Notification::Forward(forward) => {
-                        let topic = String::from_utf8_lossy(&forward.publish.topic).to_string();
-                        let payload = String::from_utf8_lossy(&forward.publish.payload).to_string();
-                        println!("MQTT Topic = {:?}, Payload = {}", &topic, &payload);
-
-                        if let Ok(mut cache) = cache.write() {
-                           cache.insert(topic, Some(payload));
-                        }
-                    }
-                    v => {
-                        println!("MQTT {v:?}");
-                    }
-                }
+                handle_packet(rec, Arc::clone(&cache));
             }
         });
 
         Ok(MqttManager {
             _broker_thread: Arc::new(broker_handle),
-            _task_handler: Arc::new(task_handler),
+            _task_handler: Arc::new(task_handle),
             _tx: Arc::new(tx),
         })
+    }
+}
+
+fn handle_packet(rec: Notification, cache: Arc<RwLock<HashMap<String, Option<String>>>>) {
+    match rec {
+        Notification::Forward(forward) => {
+            let topic = String::from_utf8_lossy(&forward.publish.topic).to_string();
+            let payload = String::from_utf8_lossy(&forward.publish.payload).to_string();
+            println!("MQTT Topic = {:?}, Payload = {}", &topic, &payload);
+
+            if let Ok(mut cache) = cache.write() {
+               cache.insert(topic, Some(payload));
+            }
+        }
+        v => {
+            println!("MQTT {v:?}");
+        }
     }
 }

@@ -1,20 +1,17 @@
 use core::error::Error;
 use rumqttd::{local::LinkTx, Broker, Config, Notification};
 use std::{
-    sync::{Arc, Mutex, RwLock},
-    thread,
+    collections::HashMap, sync::{Arc, Mutex, RwLock}, thread
 };
 
 pub struct MqttContext {
-    pub recent_topic: Arc<RwLock<Option<String>>>,
-    pub recent_data: Arc<RwLock<Option<String>>>,
+    pub cache: Arc<RwLock<HashMap<String, Option<String>>>>,
 }
 
 impl MqttContext {
     pub fn new() -> Self {
         Self {
-            recent_topic: Arc::new(RwLock::new(None)),
-            recent_data: Arc::new(RwLock::new(None)),
+            cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -45,8 +42,7 @@ impl MqttManager {
             }
         });
 
-        let recent_topic = Arc::clone(&context.recent_topic);
-        let recent_data = Arc::clone(&context.recent_data);
+        let cache = Arc::clone(&context.cache);
 
         let task_handler = std::thread::spawn(move || loop {
             let received = match rx.recv() {
@@ -65,11 +61,8 @@ impl MqttManager {
                         let payload = String::from_utf8_lossy(&forward.publish.payload).to_string();
                         println!("MQTT Topic = {:?}, Payload = {}", &topic, &payload);
 
-                        if let Ok(mut recent) = recent_topic.write() {
-                            *recent = Some(topic);
-                        }
-                        if let Ok(mut recent) = recent_data.write() {
-                            *recent = Some(payload);
+                        if let Ok(mut cache) = cache.write() {
+                           cache.insert(topic, Some(payload));
                         }
                     }
                     v => {

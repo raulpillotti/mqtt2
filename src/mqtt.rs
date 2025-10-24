@@ -4,33 +4,32 @@ use std::{
     collections::HashMap, sync::{Arc, RwLock}, thread
 };
 
-pub struct MqttContext {
-    pub cache: Arc<RwLock<HashMap<String, Option<String>>>>,
+pub struct MqttState {
+    pub last_reads: Arc<RwLock<HashMap<String, Option<String>>>>,
 }
 
-impl MqttContext {
+impl MqttState {
     pub fn new() -> Self {
         Self {
-            cache: Arc::new(RwLock::new(HashMap::new())),
+            last_reads: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
 
 #[derive(Clone)]
-pub struct MqttManager {
+pub struct MqttServer {
     _broker_thread: Arc<std::thread::JoinHandle<()>>,
     _task_handler: Arc<std::thread::JoinHandle<()>>,
     _tx: Arc<LinkTx>,
 }
 
-impl MqttManager {
-    pub fn new(context: &MqttContext, config: &str) -> Result<Self, Box<dyn Error>> {
+impl MqttServer {
+    pub fn new(state: &MqttState, config: &str) -> Result<Self, Box<dyn Error>> {
         let config_build = config::Config::builder()
             .add_source(config::File::from_str(config, config::FileFormat::Toml))
             .build()?;
 
         let config: Config = config_build.try_deserialize()?;
-
         let mut broker = Broker::new(config);
 
         let (mut tx, mut rx) = broker.link("singlenode")?;
@@ -42,7 +41,7 @@ impl MqttManager {
             }
         });
 
-        let cache = Arc::clone(&context.cache);
+        let reads = Arc::clone(&state.last_reads);
         let task_handle = std::thread::spawn(move || loop {
             let received = match rx.recv() {
                 Ok(Some(value)) => Some(value),
@@ -54,11 +53,11 @@ impl MqttManager {
             };
 
             if let Some(rec) = received {
-                handle_packet(rec, Arc::clone(&cache));
+                handle_packet(rec, Arc::clone(&reads));
             }
         });
 
-        Ok(MqttManager {
+        Ok(MqttServer {
             _broker_thread: Arc::new(broker_handle),
             _task_handler: Arc::new(task_handle),
             _tx: Arc::new(tx),
@@ -66,15 +65,15 @@ impl MqttManager {
     }
 }
 
-fn handle_packet(rec: Notification, cache: Arc<RwLock<HashMap<String, Option<String>>>>) {
+fn handle_packet(rec: Notification, last_reads: Arc<RwLock<HashMap<String, Option<String>>>>) {
     match rec {
         Notification::Forward(forward) => {
             let topic = String::from_utf8_lossy(&forward.publish.topic).to_string();
             let payload = String::from_utf8_lossy(&forward.publish.payload).to_string();
             println!("MQTT Topic = {:?}, Payload = {}", &topic, &payload);
 
-            if let Ok(mut cache) = cache.write() {
-               cache.insert(topic, Some(payload));
+            if let Ok(mut reads) = last_reads.write() {
+               reads.insert(topic, Some(payload));
             }
         }
         v => {

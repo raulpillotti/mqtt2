@@ -10,14 +10,14 @@ pub struct Tcp {
 
 impl Tcp {
     pub fn new(mqtt_state: &mqtt::MqttState) -> Self {
-        let mqtt_state = Arc::clone(&mqtt_state.last_reads);
+        let last_reads = Arc::clone(&mqtt_state.last_reads);
         let handle = std::thread::spawn(move || {
             let listener = TcpListener::bind("127.0.0.1:8084").expect("Failed starting tcp server");
             for stream in listener.incoming() {
-                let mqtt_state = Arc::clone(&mqtt_state);
-                if let Ok(client_socket) = stream {
+                let last_reads = Arc::clone(&last_reads);
+                if let Ok(stream) = stream {
                     std::thread::spawn(move || {
-                        if let Err(e) = handle_connection(client_socket, mqtt_state) {
+                        if let Err(e) = handle_connection(stream, last_reads) {
                             println!("Handle connection failed: {e}");
                         }
                     });
@@ -29,10 +29,10 @@ impl Tcp {
     }
 }
 
-fn handle_connection(mut client_socket: TcpStream, last_reads: Arc<RwLock<HashMap<String, Option<String>>>>) -> std::io::Result<()> {
-    let client_address = client_socket.peer_addr().ok();
+fn handle_connection(mut stream: TcpStream, last_reads: Arc<RwLock<HashMap<String, Option<String>>>>) -> std::io::Result<()> {
+    let client_address = stream.peer_addr().ok();
     println!("Connection from {:?}", client_address);
-    let buffer = load_req_into_buffer(&client_socket)?;
+    let buffer = load_req_into_buffer(&stream)?;
     let topic = find_topic(&buffer);
     println!("topic: {topic}");
 
@@ -45,15 +45,15 @@ fn handle_connection(mut client_socket: TcpStream, last_reads: Arc<RwLock<HashMa
             None | Some(&None) => "".to_string(),
         };
         println!("response: {response}");
-        client_socket.write_all(response.as_bytes())?;
-        client_socket.flush()?;
+        stream.write_all(response.as_bytes())?;
+        stream.flush()?;
     }
 
     Ok(())
 }
 
-fn load_req_into_buffer(client_socket: &TcpStream) -> std::io::Result<String> {
-    let mut reader = BufReader::new(client_socket);
+fn load_req_into_buffer(stream: &TcpStream) -> std::io::Result<String> {
+    let mut reader = BufReader::new(stream);
     let mut buffer = String::new();
     for _ in 0..5 {
         reader.read_line(&mut buffer)?;

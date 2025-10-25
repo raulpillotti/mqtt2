@@ -19,7 +19,7 @@ impl MqttState {
 #[derive(Clone)]
 pub struct MqttServer {
     _broker_thread: Arc<std::thread::JoinHandle<()>>,
-    _task_handler: Arc<std::thread::JoinHandle<()>>,
+    _task_handler_thread: Arc<std::thread::JoinHandle<()>>,
     _tx: Arc<LinkTx>,
 }
 
@@ -36,9 +36,7 @@ impl MqttServer {
         tx.subscribe("#")?;
 
         let broker_handle = thread::spawn(move || {
-            if let Err(e) = broker.start() {
-                println!("Error starting broker: {e}");
-            }
+            broker.start().expect("Error starting broker: {e}");
         });
 
         let reads = Arc::clone(&state.last_reads);
@@ -59,7 +57,7 @@ impl MqttServer {
 
         Ok(MqttServer {
             _broker_thread: Arc::new(broker_handle),
-            _task_handler: Arc::new(task_handle),
+            _task_handler_thread: Arc::new(task_handle),
             _tx: Arc::new(tx),
         })
     }
@@ -76,8 +74,6 @@ fn handle_packet(rec: Notification, last_reads: Arc<RwLock<HashMap<String, Optio
                reads.insert(topic, Some(payload));
             }
         }
-        v => {
-            println!("MQTT {v:?}");
-        }
+        _ => {}
     }
 }
